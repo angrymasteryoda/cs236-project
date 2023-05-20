@@ -7,28 +7,30 @@ def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str ):
     with open( csvPath, "r" ) as file:
         header = None
         reader = csv.reader( file )
-        outputData = [];
+        outputData = []; #what gets put to the output file
         if header is None:
             header = next( reader )
-            outputData.append( header )
-            #skip the header stuff for now
+            outputData.append( header ) #add the header to the output
+
         for row in reader:
             #apply changes to a csv
-            for field, change in changes.items():
+            for field, change in changes.items(): #do each of the changes listed in the change obj
                 if field in header:
                     fieldIdx = header.index( field )
-                    row[ fieldIdx ] = change( row[ fieldIdx ] )
+                    row[ fieldIdx ] = change( row[ fieldIdx ] ) #convert the value with the lambda's
 
             #merge together columns into a new column
-            rowCopy = row.copy()
             for field, change in merges.items():
                 mergeFields = change.get( 'fields' )
                 concat = change.get( "concat", "" ) #get concat or blank
-                val = [ str( row[ header.index( field ) ] ) for field in mergeFields if field in header]
-                header.append( field )
-                rowCopy.append( concat.join( val ) )
+                #get me all the values of the items in the fields into a singluar flat array
+                #the str wrap prevents concat with int later on dont need it if only doing strings
+                val = [ str( row[ header.index( x ) ] ) for x in mergeFields if x in header]
+                if field not in header:
+                    header.append( field ) #add the new fields to the header array if it doesnt exist
+                row.append( concat.join( val ) ) #add the new data to the end
             # print( rowCopy )
-            outputData.append( rowCopy )
+            outputData.append( row )
         file.close()
         #output to file
         with open( outputPath, 'w' ) as out:
