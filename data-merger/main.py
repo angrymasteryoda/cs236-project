@@ -37,6 +37,35 @@ def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str ):
             writer = csv.writer( out )
             writer.writerows( outputData )
 
+# Merge an abritarily number of CSVs into one file
+# Semantically, this appends all CSVs together
+# Pre-conditions: All input CSVs must have the same schema.
+def mergeCSV(output_csv_path: str, csv_paths: list[str]):
+    error = False
+    with open(output_csv_path, "w" ) as output_csv:
+        writer = csv.writer(output_csv)
+        global_header = None
+
+        for csv_path in csv_paths:
+            with open(csv_path, 'r') as input_csv:
+                reader = csv.reader(input_csv)
+                header = next(reader)
+                if not global_header:
+                    writer.writerow(header)
+                # Check that the header of the current input CSV
+                # matches the previous CSV header
+                elif global_header != header:
+                    print(f"Error in mergeCSV: Header for CSV '{csv_path}' doesn't match previous headers!")
+                    error = True
+                    break
+                global_header = header
+
+                for row in reader:
+                    writer.writerow(row)
+    
+    if error:
+        os.remove(output_csv_path)
+
 def main():
     DATA_DIR = '../data/'
     hotelBookPath = DATA_DIR + 'hotel-booking.csv'
