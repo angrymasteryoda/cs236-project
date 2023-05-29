@@ -1,5 +1,4 @@
-import csv
-import os
+import csv, os, sys
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
@@ -31,11 +30,38 @@ def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str ):
                 row.append( concat.join( val ) ) #add the new data to the end
             # print( rowCopy )
             outputData.append( row )
+        getDaysPrice( header, outputData )
         file.close()
         #output to file
         with open( outputPath, 'w' ) as out:
             writer = csv.writer( out )
             writer.writerows( outputData )
+
+def getDaysPrice( header: list, outputData: list):
+    header.append( "price" )
+    skip = True
+    i = 0
+    weekendIdx = header.index( 'stays_in_weekend_nights' )
+    weekNitIdx = header.index( 'stays_in_week_nights' )
+    avgPriceIdx = header.index( 'avg_price_per_room' )
+    for row in outputData:
+        if skip:
+            skip = False
+            continue
+        else:
+            #looking for stays_in_weekend_nights
+            weekends = float( row[ weekendIdx ] )
+            #looking for stays_in_week_nights
+            weekdays = float( row[ weekNitIdx ] )
+            #get avg price
+            avgPrice = float( row[ avgPriceIdx ] )
+            #sanity checks to check bad data
+            if( weekends >= 0 and weekdays >= 0 ):
+                price = avgPrice * ( weekdays + weekends )
+            else:
+                price = -1
+                print( "There was a negative weekend/day value check price fields for -1's")
+            row.append( round( price, 2 ) )
 
 def main():
     DATA_DIR = '../data/'
@@ -47,19 +73,20 @@ def main():
     changes = {
         "arrival_month": lambda value: MONTHS.index( value ) + 1
     }
-    merges = {
-        "arrival_date": { "fields" : ['arrival_month', 'arrival_date_day_of_month', 'arrival_year'], "concat": "/"}
-    }
-    mutateCsv( hotelBookPath, changes, merges, "hotel-booking-mutated.csv" )
+    # merges = {
+    #     "book_date": { "fields" : ['arrival_month', 'arrival_date_day_of_month', 'arrival_year'], "concat": "/"}
+    # }
+    mutateCsv( hotelBookPath, changes, {}, "hotel-booking-mutated.csv" )
+
 
     #mutate the customer csv
     changes = {
         "booking_status": lambda value: int( value == 'Canceled' )
     }
-    merges = {
-        "arrival_date": { "fields" : ['arrival_month', 'arrival_date', 'arrival_year'], "concat": "/"}
-    }
-    mutateCsv( customerReservPath, changes, merges, "customer-reservations-mutated.csv")
+    # merges = {
+    #     "book_date": { "fields" : ['arrival_month', 'arrival_date', 'arrival_year'], "concat": "/"}
+    # }
+    mutateCsv( customerReservPath, changes, {}, "customer-reservations-mutated.csv")
             
 
 main()
