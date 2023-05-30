@@ -2,7 +2,7 @@ import csv, os, sys
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str ):
+def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str, prune: list | None=None ):
     with open( csvPath, "r" ) as file:
         header = None
         reader = csv.reader( file )
@@ -31,11 +31,66 @@ def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str ):
             # print( rowCopy )
             outputData.append( row )
         getDaysPrice( header, outputData )
+        __pruneColumns( header, outputData, prune )
         file.close()
         #output to file
         with open( outputPath, 'w' ) as out:
             writer = csv.writer( out )
             writer.writerows( outputData )
+
+# prunes columns out of the csv data from the mutate fn
+# not meant to be called outside
+def __pruneColumns( headers:list[str], outputData: list[list], prune: list[str] ) -> None:
+    if prune == None:
+        return #if nothing to prune leave
+    
+    pruneList = [] #ready a list of indexs ready
+    #find the indexs with the headers list
+    for p in prune:
+        idx = headers.index( p )
+        if( idx != -1 ):
+            pruneList.append( idx )
+    #reorder the indexes to prevent data goofing
+    pruneList = sorted( pruneList, reverse=True )
+    #remove the cols from the lists
+    #is there a better way besides this n^2? without pandas
+    # print( pruneList )
+    for row in outputData:
+        # print( row, len(row) )
+        for i in pruneList:
+            # print( row )
+            del row[i]
+
+
+
+# Merge an abritarily number of CSVs into one file
+# Semantically, this appends all CSVs together
+# Pre-conditions: All input CSVs must have the same schema.
+def mergeCSV(output_csv_path: str, csv_paths: list[str]):
+    error = False
+    with open(output_csv_path, "w" ) as output_csv:
+        writer = csv.writer(output_csv)
+        global_header = None
+
+        for csv_path in csv_paths:
+            with open(csv_path, 'r') as input_csv:
+                reader = csv.reader(input_csv)
+                header = next(reader)
+                if not global_header:
+                    writer.writerow(header)
+                # Check that the header of the current input CSV
+                # matches the previous CSV header
+                elif global_header != header:
+                    print(f"Error in mergeCSV: Header for CSV '{csv_path}' doesn't match previous headers!")
+                    error = True
+                    break
+                global_header = header
+
+                for row in reader:
+                    writer.writerow(row)
+    
+    if error:
+        os.remove(output_csv_path)
 
 def getDaysPrice( header: list, outputData: list):
     header.append( "price" )
@@ -76,17 +131,16 @@ def main():
     # merges = {
     #     "book_date": { "fields" : ['arrival_month', 'arrival_date_day_of_month', 'arrival_year'], "concat": "/"}
     # }
-    mutateCsv( hotelBookPath, changes, {}, "hotel-booking-mutated.csv" )
+    prune = [ 'hotel', 'arrival_date_week_number', 'email', 'avg_price_per_room', 'lead_time','country', 'arrival_date_day_of_month']
+    mutateCsv( hotelBookPath, changes, {}, "hotel-booking-mutated.csv", prune )
 
 
     #mutate the customer csv
     changes = {
         "booking_status": lambda value: int( value == 'Canceled' )
     }
-    # merges = {
-    #     "book_date": { "fields" : ['arrival_month', 'arrival_date', 'arrival_year'], "concat": "/"}
-    # }
-    mutateCsv( customerReservPath, changes, {}, "customer-reservations-mutated.csv")
+    prune = [ 'Booking_ID', 'avg_price_per_room', 'lead_time', 'arrival_date' ]
+    mutateCsv( customerReservPath, changes, {}, "customer-reservations-mutated.csv", prune)
             
 
 main()
