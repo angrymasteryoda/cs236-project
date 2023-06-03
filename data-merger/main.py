@@ -62,35 +62,43 @@ def __pruneColumns( headers:list[str], outputData: list[list], prune: list[str] 
             del row[i]
 
 
-
 # Merge an abritarily number of CSVs into one file
 # Semantically, this appends all CSVs together
-# Pre-conditions: All input CSVs must have the same schema.
-def mergeCSV(output_csv_path: str, csv_paths: list[str]):
+# This will be more memory hungry with since not dumping to file right away
+def mergeCSV( outputPath: str, csvPaths: list[str] ):
     error = False
-    with open(output_csv_path, "w" ) as output_csv:
-        writer = csv.writer(output_csv)
-        global_header = None
+    mergedHeaders = []
+    #open the output
+    with open( outputPath, "w" ) as outCSV:      
+        data = []
+        for path in csvPaths: 
+            try: #catch input file errors
+                with open( path, "r" ) as inCSV:
+                    reader = csv.DictReader( inCSV ) #read them as dicts instead of arrays
+                    first = next( reader ) #get the first data row NOT the header
+                    #add the header data using the real data
+                    for x in first:
+                        if x not in mergedHeaders:
+                            mergedHeaders.append( x )
 
-        for csv_path in csv_paths:
-            with open(csv_path, 'r') as input_csv:
-                reader = csv.reader(input_csv)
-                header = next(reader)
-                if not global_header:
-                    writer.writerow(header)
-                # Check that the header of the current input CSV
-                # matches the previous CSV header
-                elif global_header != header:
-                    print(f"Error in mergeCSV: Header for CSV '{csv_path}' doesn't match previous headers!")
-                    error = True
-                    break
-                global_header = header
-
-                for row in reader:
-                    writer.writerow(row)
+                    data.append( first ) #add the data from the that lookup
+                    for row in reader: #get the rest of the file done
+                        data.append( row ) 
+                    inCSV.close() #clear mem
+                #end with
+            except: #catch input file errors
+                print( "Error in mergeCSV: Error opening an input file!")
+                return
+        #end for
+        print( f"merged the {csvPaths} into {outputPath} with the following fields")
+        print( ", ".join( mergedHeaders) )
+        writer = csv.DictWriter( outCSV, fieldnames=mergedHeaders )
+        writer.writeheader() #write the headers wont by default
+        writer.writerows( data ) #write all the data
+        outCSV.close() #clear mem
+        if error:
+            os.remove( outCSV )
     
-    if error:
-        os.remove(output_csv_path)
 
 def getDaysPrice( header: list, outputData: list):
     header.append( "price" )
@@ -131,7 +139,7 @@ def main():
     # merges = {
     #     "book_date": { "fields" : ['arrival_month', 'arrival_date_day_of_month', 'arrival_year'], "concat": "/"}
     # }
-    prune = [ 'hotel', 'arrival_date_week_number', 'email', 'avg_price_per_room', 'lead_time','country', 'arrival_date_day_of_month']
+    prune = [ 'hotel', 'arrival_date_week_number', 'email', 'avg_price_per_room', 'lead_time', 'arrival_date_day_of_month']
     mutateCsv( hotelBookPath, changes, {}, "hotel-booking-mutated.csv", prune )
 
 
@@ -141,6 +149,7 @@ def main():
     }
     prune = [ 'Booking_ID', 'avg_price_per_room', 'lead_time', 'arrival_date' ]
     mutateCsv( customerReservPath, changes, {}, "customer-reservations-mutated.csv", prune)
-            
+    
+    mergeCSV( output, [ "hotel-booking-mutated.csv","customer-reservations-mutated.csv" ] )
 
 main()
