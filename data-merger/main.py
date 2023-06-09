@@ -101,6 +101,8 @@ def get_days_price_per_row(row_data) -> str:
         print( "There was a negative weekend/day value check price fields for -1's")
     return round( price, 2 )
 
+
+
 def main():
     DATA_DIR = '../data/'
     hotelBookPath = DATA_DIR + 'hotel-booking.csv'
