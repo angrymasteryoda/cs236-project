@@ -1,8 +1,8 @@
-import csv, os, sys
+import csv, os
 
 MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str ):
+def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str, prune: list | None=None ):
     with open( csvPath, "r" ) as file:
         header = None
         reader = csv.reader( file )
@@ -11,6 +11,15 @@ def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str ):
             header = next( reader )
             outputData.append( header ) #add the header to the output
 
+        orig_header_len = len( header )
+        # Append merge fields to header at the start
+        for field in merges.keys():
+            if field not in header:
+                header.append(field)
+
+        # Create a set of fields to keep
+        keep_fields = set(header).difference(prune)
+
         for row in reader:
             #apply changes to a csv
             for field, change in changes.items(): #do each of the changes listed in the change obj
@@ -18,80 +27,80 @@ def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str ):
                     fieldIdx = header.index( field )
                     row[ fieldIdx ] = change( row[ fieldIdx ] ) #convert the value with the lambda's
 
-            #merge together columns into a new column
-            for field, change in merges.items():
-                mergeFields = change.get( 'fields' )
-                concat = change.get( "concat", "" ) #get concat or blank
-                #get me all the values of the items in the fields into a singluar flat array
-                #the str wrap prevents concat with int later on dont need it if only doing strings
-                val = [ str( row[ header.index( x ) ] ) for x in mergeFields if x in header]
-                if field not in header:
-                    header.append( field ) #add the new fields to the header array if it doesnt exist
-                row.append( concat.join( val ) ) #add the new data to the end
-            # print( rowCopy )
+            row_data = { header[field_idx]: row[field_idx] for field_idx in range(orig_header_len) }
+
+            # Apply a merge function to produce the merge field
+            for field, merge_func in merges.items():
+                merge_val = merge_func(row_data)
+                row.append( merge_val )
+
+            # Prune fields from the row
+            row = [ row[field_idx] for field_idx in range(len(header)) if header[field_idx] in keep_fields ]
             outputData.append( row )
-        getDaysPrice( header, outputData )
+
+        # Remove pruned fields from header
+        field_idx = 0
+        while field_idx < len(header):
+            if header[field_idx] not in keep_fields:
+                del header[field_idx]
+            else:
+                field_idx += 1
+
         file.close()
         #output to file
         with open( outputPath, 'w' ) as out:
             writer = csv.writer( out )
             writer.writerows( outputData )
 
-
 # Merge an abritarily number of CSVs into one file
 # Semantically, this appends all CSVs together
-# Pre-conditions: All input CSVs must have the same schema.
-def mergeCSV(output_csv_path: str, csv_paths: list[str]):
+# This will be more memory hungry with since not dumping to file right away
+def mergeCSV( outputPath: str, csvPaths: list[str] ):
     error = False
-    with open(output_csv_path, "w" ) as output_csv:
-        writer = csv.writer(output_csv)
-        global_header = None
+    mergedHeaders = []
+    #open the output
+    with open( outputPath, "w" ) as outCSV:      
+        data = []
+        for path in csvPaths: 
+            try: #catch input file errors
+                with open( path, "r" ) as inCSV:
+                    reader = csv.DictReader( inCSV ) #read them as dicts instead of arrays
+                    first = next( reader ) #get the first data row NOT the header
+                    #add the header data using the real data
+                    for x in first:
+                        if x not in mergedHeaders:
+                            mergedHeaders.append( x )
 
-        for csv_path in csv_paths:
-            with open(csv_path, 'r') as input_csv:
-                reader = csv.reader(input_csv)
-                header = next(reader)
-                if not global_header:
-                    writer.writerow(header)
-                # Check that the header of the current input CSV
-                # matches the previous CSV header
-                elif global_header != header:
-                    print(f"Error in mergeCSV: Header for CSV '{csv_path}' doesn't match previous headers!")
-                    error = True
-                    break
-                global_header = header
-
-                for row in reader:
-                    writer.writerow(row)
+                    data.append( first ) #add the data from the that lookup
+                    for row in reader: #get the rest of the file done
+                        data.append( row ) 
+                    inCSV.close() #clear mem
+                #end with
+            except: #catch input file errors
+                print( "Error in mergeCSV: Error opening an input file!")
+                return
+        #end for
+        print( f"merged the {csvPaths} into {outputPath} with the following fields")
+        print( ", ".join( mergedHeaders) )
+        writer = csv.DictWriter( outCSV, fieldnames=mergedHeaders )
+        writer.writeheader() #write the headers wont by default
+        writer.writerows( data ) #write all the data
+        outCSV.close() #clear mem
+        if error:
+            os.remove( outCSV )
     
-    if error:
-        os.remove(output_csv_path)
+def get_days_price_per_row(row_data) -> str:
+    weekends = float(row_data['stays_in_weekend_nights'])
+    weeknights = float(row_data['stays_in_week_nights'])
+    avg_price = float(row_data['avg_price_per_room'])
 
-def getDaysPrice( header: list, outputData: list):
-    header.append( "price" )
-    skip = True
-    i = 0
-    weekendIdx = header.index( 'stays_in_weekend_nights' )
-    weekNitIdx = header.index( 'stays_in_week_nights' )
-    avgPriceIdx = header.index( 'avg_price_per_room' )
-    for row in outputData:
-        if skip:
-            skip = False
-            continue
-        else:
-            #looking for stays_in_weekend_nights
-            weekends = float( row[ weekendIdx ] )
-            #looking for stays_in_week_nights
-            weekdays = float( row[ weekNitIdx ] )
-            #get avg price
-            avgPrice = float( row[ avgPriceIdx ] )
-            #sanity checks to check bad data
-            if( weekends >= 0 and weekdays >= 0 ):
-                price = avgPrice * ( weekdays + weekends )
-            else:
-                price = -1
-                print( "There was a negative weekend/day value check price fields for -1's")
-            row.append( round( price, 2 ) )
+    if weekends >= 0 and weeknights >= 0:
+        price = avg_price * ( weeknights + weekends )
+    else:
+        price = -1
+        print( "There was a negative weekend/day value check price fields for -1's")
+    return round( price, 2 )
+
 
 
 def main():
@@ -107,17 +116,17 @@ def main():
     # merges = {
     #     "book_date": { "fields" : ['arrival_month', 'arrival_date_day_of_month', 'arrival_year'], "concat": "/"}
     # }
-    mutateCsv( hotelBookPath, changes, {}, "hotel-booking-mutated.csv" )
+    prune = [ 'hotel', 'arrival_date_week_number', 'email', 'avg_price_per_room', 'lead_time', 'arrival_date_day_of_month']
+    mutateCsv( hotelBookPath, changes, {"price": get_days_price_per_row}, "hotel-booking-mutated.csv", prune )
 
 
     #mutate the customer csv
     changes = {
         "booking_status": lambda value: int( value == 'Canceled' )
     }
-    # merges = {
-    #     "book_date": { "fields" : ['arrival_month', 'arrival_date', 'arrival_year'], "concat": "/"}
-    # }
-    mutateCsv( customerReservPath, changes, {}, "customer-reservations-mutated.csv")
-            
+    prune = [ 'Booking_ID', 'avg_price_per_room', 'lead_time', 'arrival_date' ]
+    mutateCsv( customerReservPath, changes, {"price": get_days_price_per_row}, "customer-reservations-mutated.csv", prune)
+    
+    mergeCSV( output, [ "hotel-booking-mutated.csv","customer-reservations-mutated.csv" ] )
 
 main()
