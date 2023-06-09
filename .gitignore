@@ -1,1 +1,4 @@
 data-merger/*.csv
+mapreduce/mapreduce/target/*
+mapreduce/mapreduce/output/*
+.vscode/
