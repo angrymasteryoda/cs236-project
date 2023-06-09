@@ -56,7 +56,8 @@ public class App
                     context.write( month, profit );
                 }
             } catch( NumberFormatException e ){
-                //ignore
+                // ignore
+                // Need this because the csv has a header line which it attempts to read so when converting to a float it fails to here
             }
 		}
 	}
@@ -65,10 +66,11 @@ public class App
 		private FloatWritable totalProfit = new FloatWritable();
 
 		public void reduce( Text key, Iterable<FloatWritable> values, Context context ) throws IOException, InterruptedException {
-			// Calculate the total revenue for each month
+			// Calculate the total profit for each month
             float sum = 0;
             for ( FloatWritable value : values ) {
-              sum += value.get();
+                // Sum up all the intermediate values from the mapper
+                sum += value.get();
             }
             totalProfit.set( sum );
       
