@@ -2,6 +2,13 @@ package com.mapreduce;
 
 import java.io.IOException;
 import java.util.StringTokenizer;
+import java.util.TreeMap;
+import java.util.Map.Entry;
+import java.util.Map;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -31,7 +38,7 @@ public class App
 		Job job = Job.getInstance( conf, "Month Profit" );
 		job.setJarByClass( App.class );
 		job.setMapperClass( MonthProfitMapper.class );
-		job.setCombinerClass( IntSumReducer.class );
+		//job.setCombinerClass( IntSumReducer.class );
 		job.setReducerClass( IntSumReducer.class );
 		job.setOutputKeyClass( Text.class );
 		job.setOutputValueClass( FloatWritable.class );
@@ -46,7 +53,7 @@ public class App
 		Job job2 = Job.getInstance( conf, "Month Profit" );
 		job2.setJarByClass( App.class );
 		job2.setMapperClass( CountryProfitMapper.class );
-		job2.setCombinerClass( IntSumReducer.class );
+		// job2.setCombinerClass( IntSumReducer.class );
 		job2.setReducerClass( IntSumReducer.class );
 		job2.setOutputKeyClass( Text.class );
 		job2.setOutputValueClass( FloatWritable.class );
@@ -111,8 +118,9 @@ public class App
             }
         }
     }
+    
     public static class IntSumReducer extends Reducer<Text, FloatWritable, Text, FloatWritable> {
-		private FloatWritable totalProfit = new FloatWritable();
+        private ArrayList< Map.Entry< Text, Float> > sortme = new ArrayList<>();
 
 		public void reduce( Text key, Iterable<FloatWritable> values, Context context ) throws IOException, InterruptedException {
 			// Calculate the total profit for each month
@@ -121,10 +129,27 @@ public class App
                 // Sum up all the intermediate values from the mapper
                 sum += value.get();
             }
-            totalProfit.set( sum );
-      
-            // Emit the month and total revenue as key-value pairs
-            context.write( key, totalProfit );
+            
+            //send the list so i can sort by profit
+            Entry<Text, Float> e = new AbstractMap.SimpleEntry<>(new Text(key), sum );
+            sortme.add( e );
+        }
+
+        //ones once on end of task
+        protected void cleanup(Context context) throws IOException, InterruptedException {
+            Collections.sort( sortme, new FloatCompare() ) ;
+            for ( Entry<Text, Float> entry : sortme ) {
+                float profit = entry.getValue();
+                Text month = entry.getKey();
+                context.write(month, new FloatWritable(profit)); //yeet to file easy dubs
+            }
         }
 	}
+
+    private static class FloatCompare implements Comparator< Entry<Text, Float> > {
+        @Override
+        public int compare( Entry<Text, Float> f1, Entry<Text, Float> f2 ) {
+            return f2.getValue().compareTo( f1.getValue() );
+        }
+    }
 }
