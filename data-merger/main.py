@@ -6,7 +6,7 @@ def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str, prune
     with open( csvPath, "r" ) as file:
         header = None
         reader = csv.reader( file )
-        outputData = []; #what gets put to the output file
+        outputData = [] # What gets put to the output file
         if header is None:
             header = next( reader )
             outputData.append( header ) #add the header to the output
@@ -47,7 +47,8 @@ def mutateCsv( csvPath: str, changes: dict, merges: dict, outputPath: str, prune
                 field_idx += 1
 
         file.close()
-        #output to file
+
+        # Output to file
         with open( outputPath, 'w' ) as out:
             writer = csv.writer( out )
             writer.writerows( outputData )
@@ -80,7 +81,7 @@ def mergeCSV( outputPath: str, csvPaths: list[str] ):
                 print( "Error in mergeCSV: Error opening an input file!")
                 return
         #end for
-        print( f"merged the {csvPaths} into {outputPath} with the following fields")
+        print( f"Merged the {csvPaths} into {outputPath} with the following fields:")
         print( ", ".join( mergedHeaders) )
         writer = csv.DictWriter( outCSV, fieldnames=mergedHeaders )
         writer.writeheader() #write the headers wont by default
@@ -109,13 +110,11 @@ def main():
     customerReservPath = DATA_DIR + "customer-reservations.csv"
     output = "merged.csv"
     
-    #mutate the hotel booking csv
+    # Mutate the hotel booking csv
     changes = {
         "arrival_month": lambda value: MONTHS.index( value ) + 1
     }
-    # merges = {
-    #     "book_date": { "fields" : ['arrival_month', 'arrival_date_day_of_month', 'arrival_year'], "concat": "/"}
-    # }
+
     prune = [ 'hotel', 'arrival_date_week_number', 'email', 'avg_price_per_room', 'lead_time', 'arrival_date_day_of_month']
     mutateCsv( hotelBookPath, changes, {"price": get_days_price_per_row}, "hotel-booking-mutated.csv", prune )
 

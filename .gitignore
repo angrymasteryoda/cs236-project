@@ -1,4 +1,7 @@
-data-merger/*.csv
-mapreduce/mapreduce/target/*
-mapreduce/mapreduce/output/*
+# IDEs
 .vscode/
+.idea
+# Outputs
+data-merger/*.csv
+mapreduce/mapreduce/target
+mapreduce/mapreduce/output
