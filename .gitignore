@@ -3,5 +3,5 @@
 .idea
 # Outputs
 data-merger/*.csv
-mapreduce/mapreduce/target
-mapreduce/mapreduce/output
+mapreduce/target
+mapreduce/output
