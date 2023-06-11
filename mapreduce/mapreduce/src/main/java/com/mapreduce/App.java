@@ -25,6 +25,11 @@ import java.util.Map.Entry;
  */
 public class App 
 {
+
+    // Write month and market segment type to output
+    private static final String[] months = { "January", "February", "March", "April", "May",
+            "June", "July", "August", "September", "October",
+            "November", "December"};
     public static void main( String[] args ) throws Exception {
         Path inPath = new Path( args[ 0 ] );
         Path profitPathOut = new Path( args[1] + "Price" );
@@ -78,13 +83,14 @@ public class App
             if (!bookingStatus.equals("0"))
                 return;
 
+            String arrivalYear = columns[1];
             String arrivalMonth = columns[2];
             double price = Double.parseDouble(columns[7]);
             // Check if price is valid
             if (price <= 0)
                 return;
 
-            context.write(new Text(arrivalMonth), new DoubleWritable(price));
+            context.write(new Text(arrivalYear + "-" + arrivalMonth), new DoubleWritable(price));
 		}
 	}
 
@@ -108,10 +114,13 @@ public class App
             monthlyProfits.sort((e1, e2) -> e2.getValue().compareTo( e1.getValue() ));
 
             for ( Entry<Text, Double> entry : monthlyProfits ) {
-                Text month = entry.getKey();
+                String[] keys = entry.getKey().toString().split("-");
+                String year = keys[0];
+                int monthIdx = Integer.parseInt(keys[1]) - 1;
+
                 double profit = entry.getValue();
 
-                context.write(month, new DoubleWritable(profit));
+                context.write(new Text(year + "-" + months[monthIdx]), new DoubleWritable(profit));
             }
         }
 	}
@@ -162,11 +171,6 @@ public class App
         }
 
         protected void cleanup(Context context) throws IOException, InterruptedException {
-            // Write month and market segment type to output
-            final String[] months = { "January", "February", "March", "April", "May",
-                                      "June", "July", "August", "September", "October",
-                                      "November", "December"};
-
             for (int monthIdx = 0; monthIdx < 12; monthIdx++) {
                 Text month = new Text(months[monthIdx]);
 
